@@ -1,0 +1,36 @@
+# Blender MTL File: 'None'
+# Material Count: 3
+
+newmtl default_leaves
+Ns 1.000002
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 1.000000 1.000000 1.000000
+Ke 0.0 0.0 0.0
+Ni 0.000000
+d 1.000000
+illum 2
+map_Kd Maps\\Doc4b2.jpg
+
+newmtl default_stems
+Ns 1.000002
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 1.000000 1.000000 1.000000
+Ke 0.0 0.0 0.0
+Ni 0.000000
+d 1.000000
+illum 2
+map_Kd Maps\\1arw.jpg
+
+newmtl material_1_Terrain_1
+Ns 1.000002
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+Ke 0.0 0.0 0.0
+Ni 0.000000
+d 1.000000
+illum 1
+map_Bump Maps\\Terrain 1_mtl1_bumpamt.jpg
+map_Kd Maps\\ttr1.jpg
