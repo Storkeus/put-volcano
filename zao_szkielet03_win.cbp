@@ -63,6 +63,8 @@
 			<Add directory="glfw/lib" />
 			<Add directory="glew/lib" />
 		</Linker>
+		<Unit filename="f_light.glsl" />
+		<Unit filename="f_point-light.glsl" />
 		<Unit filename="f_simplest.glsl" />
 		<Unit filename="include/constants.h" />
 		<Unit filename="include/model.h" />
@@ -74,6 +76,8 @@
 		<Unit filename="myTeapot.h" />
 		<Unit filename="shaderprogram.cpp" />
 		<Unit filename="shaderprogram.h" />
+		<Unit filename="v_light.glsl" />
+		<Unit filename="v_point-light.glsl" />
 		<Unit filename="v_simplest.glsl" />
 		<Extensions>
 			<code_completion />

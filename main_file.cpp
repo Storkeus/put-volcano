@@ -7,11 +7,7 @@
 #include <cstdlib>
 #include <ctime>
 
-float getRockPosition(float animationTime)
-{
-    float parameter=-4.0f*rockMaxPositionY/pow(rockAnimationTime,2);
-    return parameter*animationTime*(animationTime-rockAnimationTime);
-}
+
 
 void mainLoop(GLFWwindow* window)
 {
@@ -71,6 +67,24 @@ void mainLoop(GLFWwindow* window)
             rockScaleModifier= (float)((float)((std::rand()%1001)-500)/10000);
 
         }
+
+        smokeRotation+=smokeRotationSpeed*deltaTime;
+
+        if(isExplosion)
+        {
+            explosionCurrentTime+=deltaTime;
+        }
+
+        if(explosionCurrentTime>=explosionMaxTime)
+           {
+
+               isExplosion=false;
+               isAfterExplosion=true;
+           }
+
+
+
+
     }
 }
 
@@ -108,6 +122,7 @@ glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         fprintf(stderr, "Nie można zainicjować GLEW.\n");
         exit(EXIT_FAILURE);
     }
+
 
 
 

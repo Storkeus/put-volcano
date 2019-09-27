@@ -11,12 +11,17 @@
 
 float aspectRatio=1;
 
-Model *testModel;
-Model *testModel2;
+Model *island;
+Model *volcano;
 Model *water;
 Model *sky;
 Model *rock;
-Shader *testShader;
+Model *smoke;
+Model *lavaParticleModel;
+Model *smokeParticleModel;
+Shader *standardShader;
+Shader *particleShader;
+
 
 float waves=0;
 bool isWavesDirectionReverted=false;
@@ -34,9 +39,19 @@ float rockAnimationCurrentTime=0;
 float rockAnimationTime=5;
 float rockMaxPositionY=6;
 
-float rockScaleModifier=0.0f;
+float rockScaleModifier=0.2f;
 
+float getRockPosition(float animationTime)
+{
+    float parameter=-4.0f*rockMaxPositionY/pow(rockAnimationTime,2);
+    return parameter*animationTime*(animationTime-rockAnimationTime);
+}
 
+bool isExplosion=false;
+bool isExplosionVisible=false;
+bool isAfterExplosion=false;
+float explosionMaxTime=20.0f;
+float explosionCurrentTime=0.0f;
 
 
 // timing
@@ -48,6 +63,8 @@ glm::vec3 cameraPosMovement = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 cameraFront =  glm::vec3(0.0f,0.0f,1.0f);
 glm::vec3 cameraUp    = glm::vec3(0.0f,1.0f,0.0f);
 
+glm::vec3 lavaLightPos(0.0f, 4.5f, 0.0f);
+
 short movementDirection=0;//0 - brak ruchu, 1 - do przodu, 2 - w prawo, 3 - na dół, 4 - w lewo
 
     float cameraSpeed = 2;
@@ -58,6 +75,38 @@ float lastX =  700.0f / 2.0;
 float lastY =  700.0f / 2.0;
 
 glm::vec3 pathFromCenter=glm::vec3(1.0f);
+
+float smokeRotation=0.0f;
+float smokeRotationSpeed=0.1f;
+
+int numberOfLavaParticles=10000;
+
+
+int numberOfSmokeParticles=5000;
+
+struct LavaParticle
+{
+    bool isGenerated;
+    glm::vec3 position;
+    float speedX;
+    float speedZ;
+    float speedY;
+    float rotation;
+};
+
+std::vector<LavaParticle> listOfLavaParticles;
+
+struct SmokeParticle
+{
+    bool isGenerated;
+    glm::vec3 position;
+    float speedX;
+    float speedZ;
+    float speedY;
+    float rotation;
+};
+
+std::vector<SmokeParticle> listOfSmokeParticles;
 
 //Procedura obsługi błędów
 void error_callback(int error, const char* description)
@@ -138,6 +187,15 @@ cameraSpeed = 15.0f * deltaTime;
                 if (key==GLFW_KEY_ESCAPE)
             exit(0);
 
+                          if (key==GLFW_KEY_SPACE)
+                          {
+                              isExplosion=true;
+                              isAfterExplosion=false;
+                              isExplosionVisible=false;
+                              explosionCurrentTime=0.0f;
+
+                          }
+
         if (key==GLFW_KEY_LEFT)
             cameraRotationX=PI/2;
         if (key==GLFW_KEY_W)
@@ -212,32 +270,86 @@ cameraSpeed = 15.0f * deltaTime;
 }
 
 
+void initLavaParticles(LavaParticle &particle,bool isGenerated)
+{
+          //inicjalizacja cząsteczek lawy
+
+    particle.isGenerated=isGenerated;
+    particle.position=lavaLightPos;
+    particle.speedX=(float)((float)((std::rand()%201)-100)/5000);
+    particle.speedZ=(float)((float)((std::rand()%201)-100)/5000);
+    particle.speedY=(float)((float)((std::rand()%50)+50)/1000);
+
+
+
+}
+
+void initSmokeParticles(SmokeParticle &particle,bool isGenerated)
+                   {
+                         //inicjalizacja cząsteczek dymu
+
+    particle.isGenerated=isGenerated;
+    particle.position=lavaLightPos;
+      particle.speedX=(float)((float)((std::rand()%301)-150)/10000);
+    particle.speedZ=(float)((float)((std::rand()%301)-150)/10000);
+    particle.speedY=(float)((float)((std::rand()%50)+50)/1500);
+        particle.rotation=(float)((float)((std::rand()%180)));
+
+
+                   }
 
 //Procedura inicjująca
 void initOpenGLProgram(GLFWwindow* window)
 {
 
     //************Tutaj umieszczaj kod, który należy wykonać raz, na początku programu************
+
+    for (int i = 0; i < numberOfLavaParticles; ++i)
+{
+    LavaParticle particle;
+initLavaParticles(particle,false);
+    listOfLavaParticles.push_back(particle);
+}
+
+for (int i = 0; i < numberOfSmokeParticles; ++i)
+{
+    SmokeParticle particle;
+initSmokeParticles(particle,false);
+listOfSmokeParticles.push_back(particle);
+}
+
     glClearColor(0,0,0,1);
     glEnable(GL_DEPTH_TEST);
 
     glfwSetWindowSizeCallback(window,windowResizeCallback);
     glfwSetKeyCallback(window,keyCallback);
 
-    testShader=new Shader("v_light.glsl", "f_light.glsl");
-    testModel= new Model("models/island/dream_island.obj");
-    testModel2= new Model("models/volcano2/volcano.obj");
+    standardShader=new Shader("v_combined-light.glsl", "f_combined-light.glsl");
+    particleShader=new Shader("v_simplest.glsl", "f_simplest.glsl");
+    island= new Model("models/island/dream_island.obj");
+    volcano= new Model("models/volcano2/volcano.obj");
     water= new Model("models/ocean/ocean.obj");
     sky= new Model("models/sky-round/sky.obj");
     rock= new Model("models/rock/rock.obj");
+    lavaParticleModel= new Model("models/particle/lava.obj");
+    smoke= new Model("models/smoke/smoke.obj");
+    smokeParticleModel= new Model("models/particle/smoke.obj");
 }
 
 //Zwolnienie zasobów zajętych przez program
 void freeOpenGLProgram(GLFWwindow* window)
 {
     //************Tutaj umieszczaj kod, który nale¿y wykonać po zakoñczeniu pętli głównej************
-    delete testModel;
-    delete testShader;
+delete smokeParticleModel;
+delete smoke;
+delete lavaParticleModel;
+delete rock;
+    delete sky;
+    delete water;
+    delete volcano;
+    delete island;
+    delete particleShader;
+    delete standardShader;
 }
 
 void closeWindow(GLFWwindow* window)
@@ -253,7 +365,7 @@ void drawScene(GLFWwindow* window,float angle_x,float angle_y)
 {
     cameraPos+=cameraPosMovement;
 
-    if(isWavesDirectionReverted&&waves<=-20 || !isWavesDirectionReverted&&waves>=20)
+    if(isWavesDirectionReverted&&waves<=-19 || !isWavesDirectionReverted&&waves>=19)
     {
         isWavesDirectionReverted=!isWavesDirectionReverted;
     }
@@ -287,97 +399,195 @@ glm::mat4 V=glm::lookAt(
 
     glm::mat4 P=glm::perspective(50.0f*PI/180.0f, aspectRatio, 0.01f, 100.0f); //Wylicz macierz rzutowania
 
-    testShader->use();//Aktywacja programu cieniuj¹cego
+    standardShader->use();//Aktywacja programu cieniuj¹cego
 
 
 
-    testShader->setVec3("light.direction", -0.2f, -1.0f, -0.3f);
 
-        // light properties
-        testShader->setVec3("light.ambient", 0.45f, 0.45f, 0.45f);
-        testShader->setVec3("light.diffuse", 0.5f, 0.5f, 0.5f);
-        testShader->setVec3("light.specular", 1.0f, 1.0f, 1.0f);
+
+
+            standardShader->setVec3("viewPos", cameraPos);
+
+        // właściwości światła kierunkowego (słońce)
+        standardShader->setVec3("directionalLight.ambient", 0.0f, 0.0f, 0.0f);
+        standardShader->setVec3("directionalLight.diffuse", 0.5f, 0.5f, 0.5f);
+        standardShader->setVec3("directionalLight.specular", 0.08f, 0.08f, 0.08f);
+        standardShader->setVec3("directionalLight.direction", -0.2f, -1.0f, -0.3f);
+
+        //właściwości światła punktowego (lawa)
+        glm::vec3 lightPosition=lavaLightPos;
+
+
+        standardShader->setVec3("pointLight.ambient", 0.0f, 0.0f, 0.0f);
+        if(isExplosionVisible)
+           {
+               standardShader->setVec3("pointLight.diffuse", 25.0f, 0.0f, 0.0f);
+               lightPosition[1]+=1.0f;
+               standardShader->setVec3("pointLight.specular", 8.0f, 0.0f, 0.0f);
+           }
+           else
+            {
+
+                standardShader->setVec3("pointLight.diffuse", 12.0f, 0.0f, 0.0f);
+                standardShader->setVec3("pointLight.specular", 5.0f, 0.0f, 0.0f);
+            }
+
+            standardShader->setVec3("pointLight.position",lightPosition);
+
+
+        standardShader->setFloat("pointLight.constant", 1.0f);
+        standardShader->setFloat("pointLight.linear", 0.9f);
+        standardShader->setFloat("pointLight.quadratic", 2.5f);
 
         // material properties
-                testShader->setInt("material.diffuse", 0);
-    testShader->setInt("material.specular", 1);
-        testShader->setFloat("material.shininess", 32.0f);
+       // standardShader->setFloat("material.shininess", 32.0f);
+
+        // material properties
+                standardShader->setInt("material.diffuse", 0.9f);
+    standardShader->setInt("material.specular", 0.005f);
+        standardShader->setFloat("material.shininess", 32.0f);
 
     //Przeslij parametry programu cieniującego do karty graficznej
 
 
    //V=glm::rotate(V,angle_x,glm::vec3(0.0f,1.0f,0.0f)); //Wylicz macierz modelu
-   testShader->setMat4("V", V);
+   standardShader->setMat4("V", V);
 
-   testShader->setMat4("P", P);
+   standardShader->setMat4("P", P);
 
         // render the loaded model
         glm::mat4 M = glm::mat4(1.0f);
          M = glm::scale(M, glm::vec3(0.025f, 0.025f, 0.025f));	// it's a bit too big for our scene, so scale it down
-glm::vec3 movement=glm::vec3(0.0f, 0.0f, angle_y);
-            pathFromCenter*=movement;
-        //M = glm::translate(M,pathFromCenter); // translate it down so it's at the center of the scene
-
-
-       // M = glm::translate(M,-pathFromCenter); // translate it down so it's at the center of the scene
-
-
+        glm::vec3 movement=glm::vec3(0.0f, 0.0f, angle_y);
+        pathFromCenter*=movement;
         M = glm::translate(M, glm::vec3(0.0f, -1.0f, 0.0f)); // translate it down so it's at the center of the scene
-        //M = glm::scale(M, glm::vec3(0.2f, 0.2f, 0.2f));	// it's a bit too big for our scene, so scale it down
-//M = glm::translate(M, movement); // translate it down so it's at the center of the scene
+        standardShader->setMat4("M", M);
+        island->Draw(*standardShader);
 
-
-
-
-//            M=glm::rotate(M,angle_y,glm::vec3(1.0f,0.0f,0.0f)); //Wylicz macierz modelu
-
-
-
-
-    testShader->setMat4("M", M);
-
-        testModel->Draw(*testShader);
 
         M = glm::mat4(1.0f);
-        M = glm::translate(M, glm::vec3(0.0f, 1.75f, 0.0f)); // translate it down so it's at the center of the scene
-        M = glm::scale(M, glm::vec3(1.8f, 1.8f, 1.8f));	// it's a bit too big for our scene, so scale it down
-//            M=glm::rotate(M,angle_y,glm::vec3(1.0f,0.0f,0.0f)); //Wylicz macierz modelu
-    testShader->setMat4("M", M);
+        M = glm::translate(M, glm::vec3(0.0f, 1.75f, 0.0f));
+        M = glm::scale(M, glm::vec3(1.8f, 1.8f, 1.8f));
+        standardShader->setMat4("M", M);
+        volcano->Draw(*standardShader);
 
-        testModel2->Draw(*testShader);
 
+        M = glm::mat4(1.0f);
+        M = glm::translate(M, glm::vec3(0.0f, 8.0f, 0.0f));
+        M = glm::scale(M, glm::vec3(1.8f, 1.8f, 1.8f));
+        M=glm::rotate(M,smokeRotation,glm::vec3(0.0f,1.0f,0.0f));
+        standardShader->setMat4("M", M);
+        smoke->Draw(*standardShader);
+
+
+
+        /* model wyświetlany w miejscu źródła światła punktowego (lawy)
                M = glm::mat4(1.0f);
-        M = glm::translate(M, glm::vec3(rockPositionX, 4.0f+rockPositionY, rockPositionZ)); // translate it down so it's at the center of the scene
-        M = glm::scale(M, glm::vec3(0.1f+rockScaleModifier, 0.1f+rockScaleModifier, 0.1f+rockScaleModifier));	// it's a bit too big for our scene, so scale it down
-//            M=glm::rotate(M,angle_y,glm::vec3(1.0f,0.0f,0.0f)); //Wylicz macierz modelu
-    testShader->setMat4("M", M);
+           M = glm::translate(M, lavaLightPos);
+        M = glm::scale(M, glm::vec3(0.3f, 0.3f, 0.3f));
+        standardShader->setMat4("M", M);
+        volcano->Draw(*standardShader);*/
 
-        rock->Draw(*testShader);
-
-
-    //testShader->setMat4("M", M);
-
-        //testModel->Draw(*testShader);
 
         M = glm::mat4(1.0f);
-        M = glm::translate(M, glm::vec3(0.0f, 0.2f, 0.0f)); // translate it down so it's at the center of the scene
-        M = glm::scale(M, glm::vec3(40.0f, 20.0f+waves, 40.0f));	// it's a bit too big for our scene, so scale it down
-        //M = glm::rotate(M,waveRotation,glm::vec3(0.0f,1.0f,0.0f)); //Wylicz macierz modelu
-    testShader->setMat4("M", M);
-
-        water->Draw(*testShader);
-
-       //     testShader->setMat4("M", M);
-
-        //testModel->Draw(*testShader);
+        M = glm::translate(M, glm::vec3(rockPositionX, 4.0f+rockPositionY, rockPositionZ));
+        M = glm::scale(M, glm::vec3(0.1f+rockScaleModifier, 0.1f+rockScaleModifier, 0.1f+rockScaleModifier));
+        standardShader->setMat4("M", M);
+        rock->Draw(*standardShader);
 
         M = glm::mat4(1.0f);
-        M = glm::translate(M, glm::vec3(0.0f, -4.0f, 0.0f)); // translate it down so it's at the center of the scene
-        M = glm::scale(M, glm::vec3(2.0f, 2.0f, 2.0f));	// it's a bit too big for our scene, so scale it down
-//            M=glm::rotate(M,angle_y,glm::vec3(1.0f,0.0f,0.0f)); //Wylicz macierz modelu
-    testShader->setMat4("M", M);
+        M = glm::translate(M, glm::vec3(0.0f, 0.2f, 0.0f));
+        M = glm::scale(M, glm::vec3(40.0f, 20.0f+waves, 40.0f));
+        standardShader->setMat4("M", M);
+        water->Draw(*standardShader);
 
-        sky->Draw(*testShader);
+        M = glm::mat4(1.0f);
+        M = glm::translate(M, glm::vec3(0.0f, -4.0f, 0.0f));
+        M = glm::scale(M, glm::vec3(2.0f, 2.0f, 2.0f));
+        standardShader->setMat4("M", M);
+        sky->Draw(*standardShader);
+
+
+         particleShader->setMat4("V", V);
+
+   particleShader->setMat4("P", P);
+
+   if(isExplosion||isAfterExplosion)
+   {
+               isExplosionVisible=false;
+
+        for(LavaParticle &particle : listOfLavaParticles)
+        {
+           M = glm::mat4(1.0f);
+
+           bool canBeShowed=(!isAfterExplosion||(isAfterExplosion&&particle.position[1]>lavaLightPos[1]));
+
+           if(canBeShowed)
+              {
+
+
+          particle.position[0]+=particle.speedX;
+           particle.position[1]+=particle.speedY;
+           particle.position[2]+=particle.speedZ;
+
+
+           }
+           else
+           {
+               particle.isGenerated=false;
+
+           }
+
+
+                   if(particle.position[1]>8.0f||particle.position[2]>3.0f||particle.position[0]>3.0f)
+        {
+initLavaParticles(particle,true);
+
+
+        }
+        if(particle.isGenerated && canBeShowed )
+           {
+
+isExplosionVisible=true;
+        M = glm::translate(M, particle.position);
+        M = glm::scale(M, glm::vec3(0.01f, 0.08f, 0.02f));
+        M=glm::rotate(M,glm::radians(90.0f),glm::vec3(1.0f,0.0f,0.0f));
+                 M=glm::rotate(M,glm::radians(particle.rotation),glm::vec3(0.0f,0.0f,1.0f));
+        particleShader->setMat4("M", M);
+        lavaParticleModel->Draw(*particleShader);
+           }
+
+
+        }
+   }
+
+              for(SmokeParticle &particle : listOfSmokeParticles)
+        {
+           M = glm::mat4(1.0f);
+          particle.position[0]+=particle.speedX;
+           particle.position[1]+=particle.speedY;
+           particle.position[2]+=particle.speedZ;
+
+                   if(particle.position[1]>8.0f||particle.position[2]>3.0f||particle.position[0]>3.0f)
+        {
+
+initSmokeParticles(particle,true);
+
+        }
+        if(particle.isGenerated)
+           {
+
+
+        M = glm::translate(M, particle.position);
+        M = glm::scale(M, glm::vec3(0.03f, 0.03f, 0.03f));
+        M=glm::rotate(M,glm::radians(90.0f),glm::vec3(1.0f,0.0f,0.0f));
+         M=glm::rotate(M,glm::radians(particle.rotation),glm::vec3(0.0f,0.0f,1.0f));
+        particleShader->setMat4("M", M);
+        smokeParticleModel->Draw(*particleShader);
+           }
+
+
+        }
 
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
